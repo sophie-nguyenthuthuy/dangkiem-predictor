@@ -36,17 +36,18 @@ export default fp(async (app) => {
       }
     }
 
-    const status = (err as { statusCode?: number }).statusCode ?? 500;
+    const e = err as Error & { statusCode?: number };
+    const status = e.statusCode ?? 500;
     if (status >= 500) {
-      req.log.error({ err, requestId }, 'Unhandled error');
+      req.log.error({ err: e, requestId }, 'Unhandled error');
     } else {
-      req.log.warn({ err: err.message, statusCode: status }, 'Client error');
+      req.log.warn({ err: e.message, statusCode: status }, 'Client error');
     }
 
     reply.status(status).send({
       statusCode: status,
-      error: err.name || 'Error',
-      message: status >= 500 && isProd ? 'Internal server error' : err.message,
+      error: e.name || 'Error',
+      message: status >= 500 && isProd ? 'Internal server error' : e.message,
       requestId,
     });
   });

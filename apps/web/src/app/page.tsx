@@ -10,7 +10,7 @@ export default function HomePage() {
         <p className="mt-4 max-w-2xl text-brand-50">
           Sau khủng hoảng đăng kiểm 2023, nhiều trung tâm ở Hà Nội và TP.HCM bị quá tải. App dự đoán
           chính xác thời gian chờ theo trung tâm, giờ, ngày, giúp bạn chọn slot tối ưu hoặc đặt
-          dịch vụ "đi đăng kiểm hộ".
+          dịch vụ &ldquo;đi đăng kiểm hộ&rdquo;.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/centers" className="btn bg-white text-brand-700 hover:bg-brand-50">

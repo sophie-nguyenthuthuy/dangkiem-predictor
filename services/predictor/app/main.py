@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from . import __version__
-from .model import load_or_train, predict, MODEL_VERSION, train
+from .model import MODEL_VERSION, load_or_train, predict, train
 
 logger = logging.getLogger("predictor")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")

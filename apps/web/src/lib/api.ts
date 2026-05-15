@@ -46,7 +46,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     } catch {
       /* ignore */
     }
-    throw new ApiError(res.status, parsed.message ?? res.statusText || `HTTP ${res.status}`);
+    throw new ApiError(res.status, parsed.message ?? (res.statusText || `HTTP ${res.status}`));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

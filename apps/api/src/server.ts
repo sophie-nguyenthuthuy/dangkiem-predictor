@@ -22,7 +22,7 @@ import { fleetRoutes } from './routes/fleets.js';
 
 export async function buildServer() {
   const app = Fastify({
-    logger,
+    loggerInstance: logger,
     requestIdHeader: 'x-request-id',
     disableRequestLogging: false,
     trustProxy: true,

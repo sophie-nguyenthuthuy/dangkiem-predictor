@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError, getStoredToken } from '@/lib/api';
@@ -26,6 +26,14 @@ interface BookingRow {
 }
 
 export default function BookingsPage() {
+  return (
+    <Suspense fallback={<div className="card text-sm text-slate-500">Đang tải…</div>}>
+      <BookingsPageInner />
+    </Suspense>
+  );
+}
+
+function BookingsPageInner() {
   const params = useSearchParams();
   const slotId = params.get('slotId');
   const centerId = params.get('centerId');
