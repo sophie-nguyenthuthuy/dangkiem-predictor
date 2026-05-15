@@ -39,6 +39,8 @@ model User {
   proxyJobsAsCustomer ProxyJob[] @relation("ProxyCustomer")
   proxyJobsAsWorker   ProxyJob[] @relation("ProxyWorker")
   refreshTokens RefreshToken[]
+  payments      Payment[]
+  queueReports  CrowdsourcedQueueReport[]
 
   @@index([fleetId])
 }
@@ -115,6 +117,7 @@ model Center {
   proxyJobs    ProxyJob[]
   liveStatuses CenterLiveStatus[]
   waitSamples  WaitSample[]
+  queueReports CrowdsourcedQueueReport[]
 
   @@index([city])
   @@index([suspended])
@@ -213,6 +216,7 @@ model Booking {
   notes                String?
   predictedWaitMinutes Int?
   feeVnd               Int
+  payments             Payment[]
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -290,4 +294,70 @@ model WaitSample {
   source       String   @default("ingest") // ingest|booking|crowdsourced
 
   @@index([centerId, arrivedAt])
+}
+
+// =========================================================
+// Payments — VNPay sandbox integration for booking fees
+// =========================================================
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  VNPAY
+  MOMO
+  CASH
+}
+
+model Payment {
+  id              String          @id @default(cuid())
+  status          PaymentStatus   @default(PENDING)
+  provider        PaymentProvider
+  amountVnd       Int
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  bookingId       String?
+  booking         Booking?        @relation(fields: [bookingId], references: [id])
+  // VNPay-specific. txnRef is what we send to VNPay (unique per attempt);
+  // providerRef is what VNPay sends back (vnp_TransactionNo).
+  txnRef          String          @unique
+  providerRef     String?
+  providerCode    String?         // vnp_ResponseCode
+  providerMessage String?
+  redirectUrl     String?         // generated VNPay URL for client to follow
+  ipnReceivedAt   DateTime?
+  paidAt          DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([bookingId])
+  @@index([status])
+}
+
+// =========================================================
+// Crowdsourced queue reports — primary signal for live state
+// =========================================================
+
+model CrowdsourcedQueueReport {
+  id           String   @id @default(cuid())
+  centerId     String
+  center       Center   @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  queueLength  Int      // self-reported cars ahead
+  laneCount    Int?     // visible active lanes
+  latitude     Float?   // for proximity verification
+  longitude    Float?
+  verified     Boolean  @default(false) // true if within 500m of center
+  createdAt    DateTime @default(now())
+
+  @@index([centerId, createdAt])
+  @@index([userId, createdAt])
 }

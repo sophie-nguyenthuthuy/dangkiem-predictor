@@ -14,6 +14,14 @@ const envSchema = z.object({
   PREDICTOR_TIMEOUT_MS: z.coerce.number().int().min(100).default(2000),
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(100),
   RATE_LIMIT_WINDOW: z.string().default('1 minute'),
+  // VNPay sandbox. Empty → /payments/vnpay/* returns 503.
+  VNPAY_TMN_CODE: z.string().optional(),
+  VNPAY_HASH_SECRET: z.string().optional(),
+  VNPAY_PAY_URL: z
+    .string()
+    .url()
+    .default('https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
+  VNPAY_RETURN_URL: z.string().url().default('http://localhost:3000/payments/return'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -19,6 +19,8 @@ import { bookingRoutes } from './routes/bookings.js';
 import { vehicleRoutes } from './routes/vehicles.js';
 import { proxyJobRoutes } from './routes/proxy-jobs.js';
 import { fleetRoutes } from './routes/fleets.js';
+import { paymentRoutes } from './routes/payments.js';
+import { queueReportRoutes } from './routes/queue-reports.js';
 
 export async function buildServer() {
   const app = Fastify({
@@ -76,6 +78,8 @@ export async function buildServer() {
   await app.register(vehicleRoutes, { prefix: '/v1' });
   await app.register(proxyJobRoutes, { prefix: '/v1' });
   await app.register(fleetRoutes, { prefix: '/v1' });
+  await app.register(paymentRoutes, { prefix: '/v1' });
+  await app.register(queueReportRoutes, { prefix: '/v1' });
 
   return app;
 }

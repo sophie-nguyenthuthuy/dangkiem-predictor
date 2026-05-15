@@ -65,6 +65,37 @@ All authenticated endpoints expect `Authorization: Bearer <accessToken>`.
 | GET    | `/v1/fleets/me/upcoming-expirations`       | FLEET_ADMIN, ADMIN  | Vehicles with expiring tem        |
 | POST   | `/v1/fleets/me/members`                    | FLEET_ADMIN, ADMIN  | Add user to fleet                 |
 
+## Payments (VNPay sandbox)
+
+| Method | Path                                | Auth  | Description                                       |
+| ------ | ----------------------------------- | ----- | ------------------------------------------------- |
+| POST   | `/v1/payments/vnpay/init`           | ✓     | Create payment for a booking → returns VNPay URL  |
+| GET    | `/v1/payments/vnpay/return`         | —     | Browser return endpoint (UX only)                 |
+| POST   | `/v1/payments/vnpay/ipn`            | —     | Server-to-server IPN (source of truth)            |
+| GET    | `/v1/payments/:id`                  | ✓     | Payment status                                    |
+
+Requires `VNPAY_TMN_CODE` + `VNPAY_HASH_SECRET` in env (register at
+https://sandbox.vnpayment.vn). When unset, init returns 503.
+
+The IPN follows VNPay PayGate spec — responses use `{RspCode, Message}`. We
+implement idempotency (`RspCode: '02'` if already confirmed) and amount
+verification (`RspCode: '04'` on mismatch).
+
+## Crowdsourced queue reports
+
+The primary live signal for the ML model. Users at the center submit their
+observed queue length; reports within 500m of the center are marked
+`verified: true` and feed into a 30-minute weighted average that backs
+`CenterLiveStatus.queueLength`.
+
+| Method | Path                                       | Auth | Description                          |
+| ------ | ------------------------------------------ | ---- | ------------------------------------ |
+| POST   | `/v1/centers/:id/queue-reports`            | ✓    | Submit a report (optional GPS)       |
+| GET    | `/v1/centers/:id/queue-reports`            | —    | Recent reports (default 60 min)      |
+
+Rate-limited per-user-per-center at 10 minutes. Unverified reports are kept
+for analysis but don't affect live status.
+
 ## Health
 
 | Method | Path             | Description                                   |
