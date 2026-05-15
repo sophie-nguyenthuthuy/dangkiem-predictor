@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dangkiem-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dangkiem}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dangkiem_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-dangkiem}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dangkiem}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  predictor:
+    build:
+      context: ./services/predictor
+      dockerfile: Dockerfile
+    container_name: dangkiem-predictor
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: dangkiem-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      predictor:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dangkiem}:${POSTGRES_PASSWORD:-dangkiem_dev_password}@postgres:5432/${POSTGRES_DB:-dangkiem}?schema=public
+      API_PORT: 4000
+      API_HOST: 0.0.0.0
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      PREDICTOR_URL: http://predictor:8000
+      CORS_ORIGIN: http://localhost:3000
+      LOG_LEVEL: info
+    ports:
+      - "4000:4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: dangkiem-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:

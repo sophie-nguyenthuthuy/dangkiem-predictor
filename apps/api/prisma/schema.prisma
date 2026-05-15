@@ -1,0 +1,293 @@
+// Đăng kiểm Predictor — database schema
+// Run: pnpm --filter @dangkiem/api db:migrate
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================================
+// Identity
+// =========================================================
+
+enum UserRole {
+  USER
+  FLEET_ADMIN
+  PROXY_WORKER
+  ADMIN
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  fullName      String
+  phone         String
+  role          UserRole @default(USER)
+  fleetId       String?
+  fleet         Fleet?   @relation(fields: [fleetId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vehicles      Vehicle[]
+  bookings      Booking[]
+  proxyJobsAsCustomer ProxyJob[] @relation("ProxyCustomer")
+  proxyJobsAsWorker   ProxyJob[] @relation("ProxyWorker")
+  refreshTokens RefreshToken[]
+
+  @@index([fleetId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// =========================================================
+// Fleets (B2B)
+// =========================================================
+
+model Fleet {
+  id           String   @id @default(cuid())
+  name         String
+  taxCode      String   @unique
+  contactName  String
+  contactPhone String
+  contactEmail String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members   User[]
+  vehicles  Vehicle[]
+}
+
+// =========================================================
+// Inspection centers
+// =========================================================
+
+enum City {
+  HN
+  HCM
+}
+
+enum LaneType {
+  LIGHT       // xe con
+  HEAVY       // xe tải, xe khách
+  MIXED
+}
+
+model Center {
+  id           String   @id @default(cuid())
+  code         String   @unique // e.g. "29-03V"
+  name         String
+  city         City
+  district     String
+  address      String
+  latitude     Float
+  longitude    Float
+  phone        String
+  openTime     String   @default("07:30") // "HH:MM"
+  closeTime    String   @default("17:00")
+  daysClosed   Int[]    @default([0]) // 0=Sun, 6=Sat
+  laneCount    Int      @default(2)
+  capacityPerHour Int   @default(12)
+  supportedVehicleTypes String[] @default(["car", "truck", "bus"])
+  suspended    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lanes        Lane[]
+  slots        Slot[]
+  bookings     Booking[]
+  proxyJobs    ProxyJob[]
+  liveStatuses CenterLiveStatus[]
+  waitSamples  WaitSample[]
+
+  @@index([city])
+  @@index([suspended])
+}
+
+model Lane {
+  id        String   @id @default(cuid())
+  centerId  String
+  center    Center   @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  laneType  LaneType
+  laneNumber Int
+  active    Boolean  @default(true)
+
+  @@unique([centerId, laneNumber])
+}
+
+model CenterLiveStatus {
+  id            String   @id @default(cuid())
+  centerId      String   @unique
+  center        Center   @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  queueLength   Int      @default(0)
+  activeLanes   Int      @default(0)
+  lastUpdatedAt DateTime @default(now())
+}
+
+// =========================================================
+// Vehicles
+// =========================================================
+
+model Vehicle {
+  id                String   @id @default(cuid())
+  plateNumber       String   @unique
+  vehicleType       String   // car|truck|bus|specialized
+  brand             String
+  model             String
+  yearOfManufacture Int
+  vin               String?
+  temExpiresAt      DateTime?
+  ownerId           String
+  owner             User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  fleetId           String?
+  fleet             Fleet?   @relation(fields: [fleetId], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  bookings  Booking[]
+  proxyJobs ProxyJob[]
+
+  @@index([ownerId])
+  @@index([fleetId])
+  @@index([temExpiresAt])
+}
+
+// =========================================================
+// Slots & Bookings
+// =========================================================
+
+model Slot {
+  id          String   @id @default(cuid())
+  centerId    String
+  center      Center   @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  startsAt    DateTime
+  endsAt      DateTime
+  capacity    Int
+  bookedCount Int      @default(0)
+  version     Int      @default(0) // optimistic locking
+
+  bookings Booking[]
+
+  @@unique([centerId, startsAt])
+  @@index([startsAt])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model Booking {
+  id                   String        @id @default(cuid())
+  bookingCode          String        @unique
+  status               BookingStatus @default(CONFIRMED)
+  centerId             String
+  center               Center        @relation(fields: [centerId], references: [id])
+  slotId               String
+  slot                 Slot          @relation(fields: [slotId], references: [id])
+  vehicleId            String
+  vehicle              Vehicle       @relation(fields: [vehicleId], references: [id])
+  userId               String
+  user                 User          @relation(fields: [userId], references: [id])
+  notes                String?
+  predictedWaitMinutes Int?
+  feeVnd               Int
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([centerId, status])
+  @@index([slotId])
+}
+
+// =========================================================
+// Proxy service (đi đăng kiểm hộ)
+// =========================================================
+
+enum ProxyJobStatus {
+  REQUESTED
+  ASSIGNED
+  PICKED_UP
+  AT_CENTER
+  INSPECTED
+  RETURNING
+  DELIVERED
+  CANCELLED
+}
+
+model ProxyJob {
+  id             String         @id @default(cuid())
+  status         ProxyJobStatus @default(REQUESTED)
+  vehicleId      String
+  vehicle        Vehicle        @relation(fields: [vehicleId], references: [id])
+  customerId     String
+  customer       User           @relation("ProxyCustomer", fields: [customerId], references: [id])
+  workerId       String?
+  worker         User?          @relation("ProxyWorker", fields: [workerId], references: [id])
+  centerId       String?
+  center         Center?        @relation(fields: [centerId], references: [id])
+  pickupAddress  String
+  pickupTime     DateTime
+  contactPhone   String
+  notes          String?
+  feeVnd         Int
+  events         ProxyJobEvent[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([customerId])
+  @@index([workerId])
+  @@index([status])
+}
+
+model ProxyJobEvent {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       ProxyJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status    ProxyJobStatus
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+}
+
+// =========================================================
+// Historical wait-time samples (for model training)
+// =========================================================
+
+model WaitSample {
+  id           String   @id @default(cuid())
+  centerId     String
+  center       Center   @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  vehicleType  String
+  arrivedAt    DateTime
+  startedAt    DateTime
+  finishedAt   DateTime?
+  queueAhead   Int
+  staffCount   Int
+  waitMinutes  Int
+  source       String   @default("ingest") // ingest|booking|crowdsourced
+
+  @@index([centerId, arrivedAt])
+}
