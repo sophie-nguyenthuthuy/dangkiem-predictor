@@ -18,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             <nav className="flex items-center gap-6 text-sm">
               <Link href="/centers" className="hover:text-brand-700">Trung tâm</Link>
+              <Link href="/centers/map" className="hover:text-brand-700">Bản đồ</Link>
               <Link href="/bookings" className="hover:text-brand-700">Lịch hẹn</Link>
               <Link href="/fleet" className="hover:text-brand-700">Fleet</Link>
               <Link href="/login" className="btn-secondary py-1.5">Đăng nhập</Link>

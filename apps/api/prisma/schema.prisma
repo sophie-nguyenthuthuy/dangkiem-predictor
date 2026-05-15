@@ -41,6 +41,7 @@ model User {
   refreshTokens RefreshToken[]
   payments      Payment[]
   queueReports  CrowdsourcedQueueReport[]
+  notifications Notification[]
 
   @@index([fleetId])
 }
@@ -165,6 +166,7 @@ model Vehicle {
 
   bookings  Booking[]
   proxyJobs ProxyJob[]
+  notifications Notification[]
 
   @@index([ownerId])
   @@index([fleetId])
@@ -217,12 +219,26 @@ model Booking {
   predictedWaitMinutes Int?
   feeVnd               Int
   payments             Payment[]
+
+  // Transition timestamps — drive the WaitSample ingestion
+  checkedInAt          DateTime?
+  inspectionStartedAt  DateTime?
+  completedAt          DateTime?
+  // Queue snapshot captured at check-in (for training)
+  queueAheadAtArrival  Int?
+  activeLanesAtArrival Int?
+
+  // Set once a WaitSample row has been derived from this booking
+  waitSampleId         String?       @unique
+  waitSample           WaitSample?   @relation(fields: [waitSampleId], references: [id])
+
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
   @@index([userId])
   @@index([centerId, status])
   @@index([slotId])
+  @@index([completedAt])
 }
 
 // =========================================================
@@ -293,7 +309,51 @@ model WaitSample {
   waitMinutes  Int
   source       String   @default("ingest") // ingest|booking|crowdsourced
 
+  // Reverse side of Booking.waitSample
+  booking      Booking?
+
   @@index([centerId, arrivedAt])
+}
+
+// =========================================================
+// Notifications — outbound queue for tem-expiry alerts etc.
+// =========================================================
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  CONSOLE
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Notification {
+  id          String              @id @default(cuid())
+  userId      String?
+  user        User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  vehicleId   String?
+  vehicle     Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  channel     NotificationChannel
+  topic       String              // e.g. "tem.expiring.30d"
+  recipient   String              // email/phone/etc.
+  subject     String?
+  body        String
+  status      NotificationStatus  @default(PENDING)
+  providerRef String?
+  error       String?
+  sentAt      DateTime?
+  createdAt   DateTime            @default(now())
+
+  // Dedupe: only one notification per user/vehicle/topic key
+  dedupeKey   String              @unique
+
+  @@index([status])
+  @@index([userId])
 }
 
 // =========================================================

@@ -22,6 +22,11 @@ const envSchema = z.object({
     .url()
     .default('https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
   VNPAY_RETURN_URL: z.string().url().default('http://localhost:3000/payments/return'),
+  // Notification providers. Unset → console fallback (still logged).
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().email().default('noreply@dangkiem.app'),
+  ESMS_API_KEY: z.string().optional(),
+  ESMS_SECRET_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

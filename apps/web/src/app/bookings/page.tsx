@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError, getStoredToken } from '@/lib/api';
 import { formatDateTime, formatVND } from '@/lib/format';
+import { PayWithVnpay } from '@/components/PayWithVnpay';
 
 interface VehicleOption {
   id: string;
@@ -76,18 +77,30 @@ function MyBookingsView() {
       )}
       <div className="grid gap-3">
         {items.map((b) => (
-          <div key={b.id} className="card flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="font-mono text-xs text-slate-500">{b.bookingCode}</div>
-              <div className="font-medium">{b.center?.name}</div>
-              <div className="text-sm text-slate-600">
-                {b.slot ? formatDateTime(b.slot.startsAt) : '—'} · Xe {b.vehicle?.plateNumber}
+          <div key={b.id} className="card space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-mono text-xs text-slate-500">{b.bookingCode}</div>
+                <div className="font-medium">{b.center?.name}</div>
+                <div className="text-sm text-slate-600">
+                  {b.slot ? formatDateTime(b.slot.startsAt) : '—'} · Xe {b.vehicle?.plateNumber}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs uppercase text-slate-500">{b.status}</div>
+                <div className="text-sm font-medium">{formatVND(b.feeVnd)}</div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-xs uppercase text-slate-500">{b.status}</div>
-              <div className="text-sm font-medium">{formatVND(b.feeVnd)}</div>
-            </div>
+            {(b.status === 'PENDING' || b.status === 'CONFIRMED') && (
+              <details className="rounded border border-slate-200 p-3">
+                <summary className="cursor-pointer text-sm font-medium text-brand-700">
+                  Thanh toán phí đăng kiểm
+                </summary>
+                <div className="mt-3">
+                  <PayWithVnpay bookingId={b.id} />
+                </div>
+              </details>
+            )}
           </div>
         ))}
       </div>
@@ -100,7 +113,7 @@ function ConfirmBookingView({ slotId, centerId }: { slotId: string; centerId: st
   const [vehicleId, setVehicleId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ bookingCode: string } | null>(null);
+  const [result, setResult] = useState<{ bookingCode: string; bookingId: string; feeVnd: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -132,7 +145,7 @@ function ConfirmBookingView({ slotId, centerId }: { slotId: string; centerId: st
         vehicleId,
         notes: notes || undefined,
       });
-      setResult({ bookingCode: booking.bookingCode });
+      setResult({ bookingCode: booking.bookingCode, bookingId: booking.id, feeVnd: booking.feeVnd });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : (e as Error).message);
     } finally {
@@ -142,13 +155,22 @@ function ConfirmBookingView({ slotId, centerId }: { slotId: string; centerId: st
 
   if (result) {
     return (
-      <div className="card space-y-2">
-        <div className="text-lg font-semibold text-emerald-700">Đặt slot thành công!</div>
-        <div className="text-sm">
-          Mã booking: <code className="rounded bg-slate-100 px-2 py-0.5">{result.bookingCode}</code>
+      <div className="max-w-md space-y-4">
+        <div className="card space-y-2">
+          <div className="text-lg font-semibold text-emerald-700">Đặt slot thành công!</div>
+          <div className="text-sm">
+            Mã booking: <code className="rounded bg-slate-100 px-2 py-0.5">{result.bookingCode}</code>
+          </div>
+          <div className="text-sm">
+            Phí kiểm định: <strong>{formatVND(result.feeVnd)}</strong>
+          </div>
         </div>
-        <Link href="/bookings" className="btn-primary mt-3 inline-block">
-          Xem lịch hẹn của tôi
+        <div className="card space-y-3">
+          <div className="text-sm font-medium">Thanh toán ngay qua VNPay</div>
+          <PayWithVnpay bookingId={result.bookingId} />
+        </div>
+        <Link href="/bookings" className="btn-secondary mt-3 inline-block">
+          Hoặc thanh toán sau từ trang lịch hẹn
         </Link>
       </div>
     );

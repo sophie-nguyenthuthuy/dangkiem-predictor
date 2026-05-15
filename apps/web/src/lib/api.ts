@@ -169,6 +169,30 @@ export const api = {
       notes?: string;
     },
   ) => request<{ id: string; status: string }>('/v1/proxy-jobs', { method: 'POST', token, body }),
+  initVnpayPayment: (
+    token: string,
+    body: { bookingId: string; bankCode?: string; locale?: 'vn' | 'en' },
+  ) => request<{ paymentId: string; redirectUrl: string }>(
+    '/v1/payments/vnpay/init',
+    { method: 'POST', token, body },
+  ),
+  getPayment: (token: string, id: string) =>
+    request<{
+      id: string;
+      status: string;
+      amountVnd: number;
+      providerCode: string | null;
+      providerMessage: string | null;
+      booking: { bookingCode: string; status: string } | null;
+    }>(`/v1/payments/${id}`, { token }),
+  reportQueue: (
+    token: string,
+    centerId: string,
+    body: { queueLength: number; laneCount?: number; latitude?: number; longitude?: number },
+  ) => request<{ id: string; verified: boolean; thanks: string }>(
+    `/v1/centers/${centerId}/queue-reports`,
+    { method: 'POST', token, body },
+  ),
 };
 
 export const TOKEN_KEY = 'dangkiem.access_token';
